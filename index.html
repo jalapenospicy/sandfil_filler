@@ -292,7 +292,7 @@ async function connect(u){
 }
 window.sandfilCloud={
  isReady:()=>!!(user&&ready),
- queueSync:data=>{if(!user||!ready)return;clearTimeout(timer);const copy=JSON.parse(JSON.stringify(data));timer=setTimeout(()=>writeCloud(copy).catch(console.error),600);},/attachments/${encodeURIComponent(id)}`));}catch(e){if(e.code!=="storage/object-not-found")throw e;}}
+ queueSync:data=>{if(!user||!ready)return;clearTimeout(timer);const copy=JSON.parse(JSON.stringify(data));timer=setTimeout(()=>writeCloud(copy).catch(console.error),600);}
 };
 inBtn?.addEventListener("click",async()=>{try{await signInWithPopup(auth,provider);}catch(e){console.error(e);alert("Google sign-in failed: "+(e.message||e));}});
 outBtn?.addEventListener("click",async()=>{try{await signOut(auth);user=null;ready=false;ui();}catch(e){alert("Sign out failed: "+(e.message||e));}});

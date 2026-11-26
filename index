@@ -24,7 +24,7 @@
 </header>
 <nav class="mobile-nav" id="mobileNav" aria-label="Main navigation"></nav>
 <div class="shell">
-  <aside class="sidebar"><div class="nav-label">Workspace</div><div id="sideNav"></div><div class="sidebar-note"><strong>Private by design</strong><span id="storageNoteText">Claims and files stay in this browser until you connect your private Google cloud account.</span></div></aside>
+  <aside class="sidebar"><div class="nav-label">Workspace</div><div id="sideNav"></div><div class="sidebar-note"><strong>Private by design</strong><span id="storageNoteText">Claim records sync to your private Google account. Supporting files stay on this device.</span></div></aside>
   <main class="main" id="main" tabindex="-1"></main>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -90,9 +90,9 @@ function updateStorageUI(){const badge=$('#storageModeBadge'),note=$('#storageNo
 
 function normalizeState(s){const d=defaults();s=s&&typeof s==='object'?s:{};return {claims:Array.isArray(s.claims)?s.claims:[],settings:{claimElements:Array.isArray(s.settings?.claimElements)?s.settings.claimElements:d.settings.claimElements,attachmentCategories:Array.isArray(s.settings?.attachmentCategories)?s.settings.attachmentCategories:d.settings.attachmentCategories}}}
 async function persistState(skipCloud=false){try{if(serverApi){const res=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});if(!res.ok){let msg='Local database save failed';try{msg=(await res.json()).error||msg}catch(e){}throw new Error(msg)}return true}if(dbOk&&db)await txReq('kv','readwrite','put',{key:STATE_KEY,value:state});try{localStorage.setItem('sandfil-claim-state',JSON.stringify(state))}catch(e){if(dbOk)showToast('IndexedDB saved your records, but the browser backup mirror is full.',true,5000);else throw new Error('Browser storage is full. Reduce attachment size or export/save your work elsewhere before closing.')}if(!skipCloud&&window.sandfilCloud?.isReady())window.sandfilCloud.queueSync(state);return true}catch(e){showToast('Save error: '+(e.message||'browser storage failed')+'. Export or copy your information before closing.',true,7000);return false}}
-async function putFile(id,blob,name,type,meta={}){if(serverApi){const q=new URLSearchParams({name:name||'attachment',type:type||blob.type||'application/octet-stream',claimId:meta.claimId||'Unassigned',claimDate:meta.claimDate||today(),savedName:meta.savedName||name||'attachment',category:meta.category||'Other'});const url='/api/files/'+encodeURIComponent(id)+'?'+q.toString();const res=await fetch(url,{method:'PUT',headers:{'Content-Type':type||blob.type||'application/octet-stream'},body:blob});if(!res.ok){let msg='Local attachment save failed';try{msg=(await res.json()).error||msg}catch(e){}throw new Error(msg)}return}if(window.sandfilCloud?.isReady())await window.sandfilCloud.uploadFile(id,blob,{name,type,meta});if(dbOk&&db){await txReq('files','readwrite','put',{id,blob,name,type,updatedAt:new Date().toISOString()});return}if(window.sandfilCloud?.isReady())return;throw new Error('Persistent attachment storage is unavailable in this browser. Try a supported updated browser and export backups regularly.')}
-async function getFile(id){if(serverApi){try{const res=await fetch('/api/files/'+encodeURIComponent(id),{cache:'no-store'});if(res.ok)return await res.blob()}catch(e){console.warn('Could not fetch attachment from local database.',e)}}if(window.sandfilCloud?.isReady()){try{const b=await window.sandfilCloud.getFile(id);if(b)return b}catch(e){console.warn('Cloud attachment unavailable; trying local copy.',e)}}if(dbOk&&db){try{const rec=await txReq('files','readonly','get',id);if(rec&&rec.blob)return rec.blob}catch(e){}}const a=findAttachmentByFileId(id);if(a?.dataUrl)return dataURLToBlob(a.dataUrl);return null}
-async function deleteFile(id){if(serverApi){try{await fetch('/api/files/'+encodeURIComponent(id),{method:'DELETE'})}catch(e){console.warn('Could not remove attachment from local database.',e)}return}if(window.sandfilCloud?.isReady()){try{await window.sandfilCloud.deleteFile(id)}catch(e){console.warn('Could not remove cloud attachment.',e)}}if(dbOk&&db){try{await txReq('files','readwrite','delete',id)}catch(e){}}}
+async function putFile(id,blob,name,type,meta={}){if(serverApi){const q=new URLSearchParams({name:name||'attachment',type:type||blob.type||'application/octet-stream',claimId:meta.claimId||'Unassigned',claimDate:meta.claimDate||today(),savedName:meta.savedName||name||'attachment',category:meta.category||'Other'});const url='/api/files/'+encodeURIComponent(id)+'?'+q.toString();const res=await fetch(url,{method:'PUT',headers:{'Content-Type':type||blob.type||'application/octet-stream'},body:blob});if(!res.ok){let msg='Local attachment save failed';try{msg=(await res.json()).error||msg}catch(e){}throw new Error(msg)}return}if(dbOk&&db){await txReq('files','readwrite','put',{id,blob,name,type,updatedAt:new Date().toISOString()});return}throw new Error('Persistent attachment storage is unavailable in this browser. Try a supported updated browser and export backups regularly.')}
+async function getFile(id){if(serverApi){try{const res=await fetch('/api/files/'+encodeURIComponent(id),{cache:'no-store'});if(res.ok)return await res.blob()}catch(e){console.warn('Could not fetch attachment from local database.',e)}}if(dbOk&&db){try{const rec=await txReq('files','readonly','get',id);if(rec&&rec.blob)return rec.blob}catch(e){}}const a=findAttachmentByFileId(id);if(a?.dataUrl)return dataURLToBlob(a.dataUrl);return null}
+async function deleteFile(id){if(serverApi){try{await fetch('/api/files/'+encodeURIComponent(id),{method:'DELETE'})}catch(e){console.warn('Could not remove attachment from local database.',e)}return}if(dbOk&&db){try{await txReq('files','readwrite','delete',id)}catch(e){}}}
 function findAttachmentByFileId(id){for(const c of state.claims){const a=(c.attachments||[]).find(x=>x.fileId===id);if(a)return a}if(editor){const a=(editor.attachments||[]).find(x=>x.fileId===id);if(a)return a}return null}
 function renderNav(){const markup=NAV.map(([id,ico,label])=>`<button class="nav-btn ${page===id?'active':''}" data-action="nav" data-page="${id}"><span class="nav-icon">${ico}</span>${label}</button>`).join('');$('#sideNav').innerHTML=markup;$('#mobileNav').innerHTML=markup}
 function go(next){page=next;renderNav();renderPage();window.scrollTo({top:0,behavior:'smooth'})}
@@ -232,19 +232,18 @@ document.addEventListener('dragover',ev=>{if(ev.target.closest('#libraryDrop'))e
 import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getBytes, getMetadata, deleteObject } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-storage.js";
 
 const config = {
-  apiKey: "AIzaSyDXeVjBDadCdPLmZ63FF7FgOdv93Z5rXUI",
-  authDomain: "yearlyplanner-jules.firebaseapp.com",
-  projectId: "yearlyplanner-jules",
-  storageBucket: "yearlyplanner-jules.firebasestorage.app",
-  messagingSenderId: "1065282524438",
-  appId: "1:1065282524438:web:fb7428d51719d33fc8ac37",
-  measurementId: "G-L5T6S98SVM"
+  apiKey: "AIzaSyBjc0GUdkZ3JbRwLVrjYisVOSODbiJPjSA",
+  authDomain: "sandfil-filler.firebaseapp.com",
+  projectId: "sandfil-filler",
+  storageBucket: "sandfil-filler.firebasestorage.app",
+  messagingSenderId: "764138366403",
+  appId: "1:764138366403:web:abfa3a76448a806fa38976",
+  measurementId: "G-W2F3MDW391"
 };
 const app = getApps().length ? getApps()[0] : initializeApp(config);
-const auth = getAuth(app), firestore = getFirestore(app), storage = getStorage(app);
+const auth = getAuth(app), firestore = getFirestore(app);
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({prompt:"select_account"});
 let user=null, ready=false, busy=false, timer=null, pendingWrite=null;
@@ -253,23 +252,10 @@ const inBtn=document.getElementById("cloudSignInBtn");
 const outBtn=document.getElementById("cloudSignOutBtn");
 const note=document.getElementById("storageNoteText");
 function status(s,err=false){if(badge){badge.textContent=s;badge.style.color=err?"#ffd8d8":"#d7e6ee";}}
-function ui(){if(inBtn)inBtn.classList.toggle("hidden",!!user);if(outBtn)outBtn.classList.toggle("hidden",!user);if(!user){status("☁ Cloud not connected");if(note)note.textContent="Claims and files stay in this browser until you connect your private Google cloud account.";}else{status(ready?"☁ Cloud connected":"☁ Connecting cloud…");if(note)note.textContent="Your claim records and supporting files sync to your private Google account. Local browser copies are retained where supported.";}}
+function ui(){if(inBtn)inBtn.classList.toggle("hidden",!!user);if(outBtn)outBtn.classList.toggle("hidden",!user);if(!user){status("☁ Cloud not connected");if(note)note.textContent="Claim records sync to your private Google account. Supporting files stay on this device.";}else{status(ready?"☁ Cloud connected":"☁ Connecting cloud…");if(note)note.textContent="Your claim records and settings sync to your private Google account. Supporting files remain stored locally on this device.";}}
 function cloudRef(){return doc(firestore,"users",user.uid,"sandfil","main");}
 function mergeList(local=[],remote=[]){const map=new Map();remote.forEach(x=>map.set(x.id,x));local.forEach(x=>{const old=map.get(x.id);if(!old||String(x.updatedAt||"")>String(old.updatedAt||""))map.set(x.id,x);});return [...map.values()];}
 function merge(local,remote){return {claims:mergeList(local?.claims||[],remote?.claims||[]),settings:{claimElements:mergeList(local?.settings?.claimElements||[],remote?.settings?.claimElements||[]),attachmentCategories:mergeList(local?.settings?.attachmentCategories||[],remote?.settings?.attachmentCategories||[])}};}
-async function uploadExistingFiles(){
- const bridge=window.__sandfilBridge;if(!bridge)throw new Error("Local storage has not finished loading.");
- for(const f of bridge.listFiles()){
-   const path=ref(storage,`users/${user.uid}/attachments/${encodeURIComponent(f.id)}`);
-   try { await getMetadata(path); continue; }
-   catch(e) { if(e.code!=="storage/object-not-found") throw e; }
-   let blob=await bridge.getLocalFile(f.id);
-   if(!blob&&f.dataUrl){const r=await fetch(f.dataUrl);blob=await r.blob();}
-   if(!blob)throw new Error(`Attachment not found locally: ${f.name||f.id}. Export a full backup before continuing.`);
-   await uploadBytes(path,blob,{contentType:f.type||blob.type||"application/octet-stream",customMetadata:{claimId:f.claimId||"",originalName:f.name||""}});
-   bridge.clearDataUrl(f.id);
- }
-}
 async function writeCloud(data){
  if(!user||!ready)return;
  if(busy){pendingWrite=JSON.parse(JSON.stringify(data));return;}
@@ -292,10 +278,8 @@ async function connect(u){
    const snap=await getDoc(cloudRef());
    if(snap.exists()&&snap.data()?.data){
      const combined=merge(local,snap.data().data);
-     await uploadExistingFiles();
      await bridge.applyCloudState(combined);
    }else{
-     await uploadExistingFiles();
    }
    ready=true;
    await writeCloud(bridge.getState());
@@ -303,15 +287,12 @@ async function connect(u){
    ui();
  }catch(e){
    console.error("SANDfil cloud setup failed",e);ready=false;status("☁ Cloud setup error",true);
-   alert("Google sign-in worked, but SANDfil cloud sync could not finish. Check Firestore and Storage rules. Details: "+(e.message||e));
+   alert("Google sign-in worked, but SANDfil cloud sync could not finish. Check your Firestore rules. Details: "+(e.message||e));
  }
 }
 window.sandfilCloud={
  isReady:()=>!!(user&&ready),
- queueSync:data=>{if(!user||!ready)return;clearTimeout(timer);const copy=JSON.parse(JSON.stringify(data));timer=setTimeout(()=>writeCloud(copy).catch(console.error),600);},
- uploadFile:async(id,blob,meta={})=>{if(!user||!ready)throw new Error("Sign in with Google and wait for cloud sync before uploading attachments.");await uploadBytes(ref(storage,`users/${user.uid}/attachments/${encodeURIComponent(id)}`),blob,{contentType:meta.type||blob.type||"application/octet-stream",customMetadata:{originalName:meta.name||"",claimId:meta.meta?.claimId||""}});},
- getFile:async id=>{if(!user||!ready)return null;const bytes=await getBytes(ref(storage,`users/${user.uid}/attachments/${encodeURIComponent(id)}`),30*1024*1024);return new Blob([bytes]);},
- deleteFile:async id=>{if(!user||!ready)return;try{await deleteObject(ref(storage,`users/${user.uid}/attachments/${encodeURIComponent(id)}`));}catch(e){if(e.code!=="storage/object-not-found")throw e;}}
+ queueSync:data=>{if(!user||!ready)return;clearTimeout(timer);const copy=JSON.parse(JSON.stringify(data));timer=setTimeout(()=>writeCloud(copy).catch(console.error),600);},/attachments/${encodeURIComponent(id)}`));}catch(e){if(e.code!=="storage/object-not-found")throw e;}}
 };
 inBtn?.addEventListener("click",async()=>{try{await signInWithPopup(auth,provider);}catch(e){console.error(e);alert("Google sign-in failed: "+(e.message||e));}});
 outBtn?.addEventListener("click",async()=>{try{await signOut(auth);user=null;ready=false;ui();}catch(e){alert("Sign out failed: "+(e.message||e));}});
